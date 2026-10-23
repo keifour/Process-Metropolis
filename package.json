@@ -36,7 +36,8 @@
       "server.mjs",
       "monitor.mjs",
       "windows-monitor.mjs",
-      "package.json"
+      "package.json",
+      "windows-native.mjs"
     ],
     "win": {
       "target": [
