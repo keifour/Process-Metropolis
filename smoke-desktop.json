@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "version": "0.3.0",
+  "platform": "win32",
+  "packaged": true,
+  "processCount": 147,
+  "selfProtected": true,
+  "ui": {
+    "rows": 146,
+    "webgl": true,
+    "selected": true,
+    "drawCalls": 6,
+    "fps": 19
+  }
+}
