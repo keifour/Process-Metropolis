@@ -6,7 +6,7 @@ const reportIndex=process.argv.indexOf('--report');
 const report=resolve(reportIndex<0?'artifacts/smoke-desktop.json':process.argv[reportIndex+1]);
 await mkdir(resolve('artifacts'),{recursive:true});await unlink(report).catch(()=>{});
 const executable=exeIndex<0?(await import('electron')).default:resolve(process.argv[exeIndex+1]);
-const args=exeIndex<0?['.',...(process.platform==='linux'?['--no-sandbox']:[])]:[];
+const args=[...(exeIndex<0?['.']:[]),...(process.platform==='linux'?['--no-sandbox']:[])];
 const child=spawn(executable,args,{env:{...process.env,PROCESS_METROPOLIS_SMOKE_REPORT:report},stdio:'inherit'});
 let spawnError;child.on('error',error=>{spawnError=error;});
 try{
@@ -14,6 +14,7 @@ try{
  while(Date.now()-started<120000){
   if(spawnError)throw spawnError;
   try{result=JSON.parse(await readFile(report,'utf8'));break;}catch{}
+  if(child.signalCode!==null)throw Error(`Desktop crashed: ${child.signalCode}`);
   if(child.exitCode!==null && child.exitCode!==0)throw Error(`Desktop exited with ${child.exitCode}`);
   await new Promise(r=>setTimeout(r,500));
  }

@@ -52,6 +52,7 @@
     },
     "portable": {
       "requestExecutionLevel": "user"
-    }
+    },
+    "beforePack": "scripts/before-pack.cjs"
   }
 }

@@ -18,14 +18,26 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Record build start
+        env:
+          BUILD_STATUS: installing
+        run: node scripts/release-report.mjs
       - name: Install locked dependencies
-        run: npm ci
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          npm ci 2>&1 | Tee-Object artifacts/install.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test Windows telemetry and termination guards
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
           npm test 2>&1 | Tee-Object artifacts/tests.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record build progress
+        env:
+          BUILD_STATUS: building
+        run: node scripts/release-report.mjs
       - name: Build portable Windows x64 executable
         shell: pwsh
         env:
@@ -33,6 +45,10 @@ jobs:
         run: |
           npm run dist:win 2>&1 | Tee-Object artifacts/build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Record smoke test progress
+        env:
+          BUILD_STATUS: validating
+        run: node scripts/release-report.mjs
       - name: Run packaged desktop and portable executable
         shell: pwsh
         run: |

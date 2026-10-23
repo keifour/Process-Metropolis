@@ -34,7 +34,7 @@ const server=http.createServer(async(req,res)=>{
     }catch(e){return json(400,{error:e.code==='ESRCH'?'进程已退出':e.message});}
   }
   if(req.method!=='GET'||!files[path])return json(404,{error:'Not found'});
-  try{const body=await readFile(new URL(files[path],import.meta.url));res.writeHead(200,{'Content-Type':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'});res.end(body);}catch{json(500,{error:'资源未安装，请运行 npm ci'});}
+  try{const body=path==='/vendor/OrbitControls.js' ? await readFile(new URL('public/vendor/OrbitControls.js',import.meta.url)).catch(()=>readFile(new URL(files[path],import.meta.url))) : await readFile(new URL(files[path],import.meta.url));res.writeHead(200,{'Content-Type':path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'});res.end(body);}catch{json(500,{error:'资源未安装，请运行 npm ci'});}
 });
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
 port=server.address().port;
