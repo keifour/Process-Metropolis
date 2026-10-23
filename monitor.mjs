@@ -5,6 +5,8 @@ import os from 'node:os';
 import {windowsSnapshot, windowsIdentity, windowsTerminate, criticalWindowsNames} from './windows-monitor.mjs';
 const exec = promisify(execFile);
 let previous = new Map();
+let protectedRoot=process.pid;
+export function protectProcessTree(pid){if(Number.isInteger(pid)&&pid>0)protectedRoot=pid;}
 export function parseProcesses(output) {
   return output.trim().split('\n').filter(Boolean).map(line => {
     const m = line.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\d+)\s+(.+)$/);
@@ -55,7 +57,7 @@ export async function snapshot() {
   while(parent && !protectedPids.has(parent)) { protectedPids.add(parent); parent=processes.find(p=>p.pid===parent)?.ppid; }
   // Protect the desktop renderer, GPU and other descendants as well as ancestors.
   let added=true;
-  const desktopPids=new Set([process.pid]);
+  const desktopPids=new Set([process.pid,protectedRoot]);
   while(added){added=false;for(const p of processes) if(desktopPids.has(p.ppid)&&!desktopPids.has(p.pid)){desktopPids.add(p.pid);added=true;}}
   for(const pid of desktopPids) protectedPids.add(pid);
   for(const p of processes) p.canKill = !!p.identity && !protectedPids.has(p.pid) && (process.platform === 'win32' ? p.pid>4 && p.sessionId>0 && p.sessionId===sessionId && !criticalWindowsNames.has(p.name.toLowerCase()) : p.uid === process.getuid() && p.uid !== 0);
