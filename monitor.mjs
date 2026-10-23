@@ -50,6 +50,8 @@ export async function snapshot() {
       }
     } catch { p.identity = null; }
   }));
+  // Do not turn our own short-lived sampler into a new/exit event every interval.
+  processes=processes.filter(p=>!(p.ppid===process.pid && p.name==='ps'));
   const alive = new Set(processes.map(p=>p.pid));
   for(const pid of previous.keys()) if(!alive.has(pid)) previous.delete(pid);
   const protectedPids = new Set([1,process.pid]);

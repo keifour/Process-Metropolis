@@ -33,8 +33,8 @@ else {
   window.once('ready-to-show',()=>window.show());
   await window.loadURL(service.url);
   if(smokePath){
-   const ui=await window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<120;i++){if(document.querySelectorAll('.row').length && document.querySelector('#connection').textContent==='实时连接'){const webgl=!!document.querySelector('#scene').getContext('webgl2');document.querySelector('.row').click();const selected=!!document.querySelector('#detail h3').textContent;return {rows:document.querySelectorAll('.row').length,webgl,selected};}await new Promise(r=>setTimeout(r,500));}throw Error('Desktop telemetry did not become ready');})()`);
-   if(!ui.webgl||!ui.selected)throw Error('Desktop renderer validation failed');
+   const ui=await window.webContents.executeJavaScript(`(async()=>{for(let i=0;i<120;i++){const row=document.querySelector('.row'),diagnostics=window.__metropolisDiagnostics;if(row && document.querySelector('#connection').textContent==='实时连接' && diagnostics?.drawCalls>0){const webgl=!!document.querySelector('#scene').getContext('webgl2');row.click();const selected=!document.querySelector('#detail-content').hidden && row.getAttribute('aria-pressed')==='true' && !!document.querySelector('#detail-name').textContent;return {rows:document.querySelectorAll('.row').length,webgl,selected,drawCalls:diagnostics.drawCalls,fps:diagnostics.fps};}await new Promise(r=>setTimeout(r,500));}throw Error('Desktop telemetry did not become ready');})()`);
+   if(!ui.webgl||!ui.selected||ui.drawCalls>12)throw Error('Desktop renderer validation failed');
    const data=await service.refresh();
    const report={ok:true,version:app.getVersion(),platform:process.platform,packaged:app.isPackaged,processCount:data.processes.length,selfProtected:[process.pid,service.pid].every(pid=>data.processes.find(p=>p.pid===pid)?.canKill===false),ui};
    if(!report.selfProtected)throw Error('Desktop main process is not protected');

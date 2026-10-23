@@ -1,8 +1,340 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Process Metropolis · 进程大都会</title><link rel="stylesheet" href="/style.css"><script type="importmap">{"imports":{"three":"/vendor/three.js","three/addons/controls/OrbitControls.js":"/vendor/OrbitControls.js"}}</script></head><body>
-<header><a class="brand" href="/">◈ <span>PROCESS<br><b>METROPOLIS</b></span></a><div class="edition">系统即城市 <span>/</span> CITY OPERATING SYSTEM</div><div class="live"><i></i><span id="connection">正在连接</span></div><time id="clock"></time></header>
-<main><section class="city"><div class="title"><div class="eyebrow">LIVE SYSTEM VISUALIZATION / 01</div><h1>每个进程，<br>都有一座城。</h1><p>看见计算的脉搏，掌控你的数字生态。</p></div><canvas id="scene"></canvas><div class="scene-help">拖动旋转 · 滚轮缩放 · 点击建筑查看进程</div><div class="legend"><span><i class="cyan"></i>轻载街区</span><span><i class="violet"></i>活跃进程</span><span><i class="orange"></i>高负载建筑</span></div><div class="city-tag">SECTOR 001 <span id="host">LOCAL MACHINE</span></div><div id="empty-city" hidden>等待进程数据</div></section>
-<aside><div class="panel-heading"><div><span class="eyebrow">URBAN TELEMETRY</span><h2>城市生命体征</h2></div><span class="mini">实时 / 2s</span></div><div class="stats"><article><label>CPU 负载 <span id="cores"></span></label><strong id="cpu">—</strong><div class="meter"><i id="cpu-bar"></i></div><small id="quake">城市结构稳定</small></article><article><label>物理内存</label><strong id="memory">—</strong><div class="meter purple"><i id="memory-bar"></i></div><small id="memory-detail">等待采样</small></article></div>
-<div class="process-heading"><h2>进程街区 <span id="count">0</span></h2><button id="sort" title="切换排序">内存 ↓</button></div><input id="search" placeholder="搜索名称或 PID…" aria-label="搜索进程"><div id="process-list" class="process-list"></div><div class="detail" id="detail"><span class="eyebrow">BUILDING INSPECTOR</span><h3>选择一座建筑</h3><p>查看它的资源消耗与运行状态。</p></div></aside></main>
-<footer><span>◉ <b id="system">LOCAL SYSTEM</b> <span class="muted">/ 本机实时遥测</span></span><span>建筑高度 = 内存 · 光照强度 = CPU <span class="footer-index">PM—001</span></span></footer><div id="toast" role="status"></div>
-<dialog id="confirm"><form method="dialog"><span class="eyebrow">DEMOLITION AUTHORIZATION</span><h2>确认拆除这座建筑？</h2><p id="confirm-text"></p><p class="warning">这将强制结束真实进程（SIGKILL），未保存的数据可能丢失。</p><div class="dialog-actions"><button value="cancel">取消</button><button id="confirm-kill" value="kill" class="danger">强制结束进程</button></div></form></dialog>
-<script type="module" src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#091117" />
+    <title>Process Metropolis · 进程大都会</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/three.js",
+          "three/addons/controls/OrbitControls.js": "/vendor/OrbitControls.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="Process Metropolis 首页"
+        ><span class="brand-mark">▥</span
+        ><span
+          >PROCESS <b>METROPOLIS</b
+          ><small>进程大都会 / SYSTEM OBSERVATORY</small></span
+        ></a
+      >
+      <nav aria-label="主导航">
+        <button class="nav-button active" id="nav-city">城市总览</button
+        ><button class="nav-button" id="nav-events">
+          事件日志 <span id="nav-event-count">0</span>
+        </button>
+      </nav>
+      <div class="header-actions">
+        <span class="connection"
+          ><i></i><span id="connection" aria-live="polite">正在连接</span></span
+        ><button class="quiet-button" id="help">操作指南 <kbd>?</kbd></button>
+      </div>
+    </header>
+    <div class="page-heading">
+      <div>
+        <span class="eyebrow">YOUR SYSTEM, ALIVE.</span>
+        <h1>看见系统的每一次呼吸<span>。</span></h1>
+      </div>
+      <div class="host-chip">
+        <i></i><span id="host">LOCAL MACHINE</span><span id="system">—</span>
+      </div>
+    </div>
+    <section class="dashboard" aria-label="系统实时指标">
+      <article class="metric-card">
+        <div class="metric-label">
+          <span><i class="metric-dot cyan"></i>CPU 负载</span
+          ><span id="cores">—</span>
+        </div>
+        <div class="metric-value">
+          <strong id="cpu">—</strong><span id="cpu-change">等待采样</span>
+        </div>
+        <svg viewBox="0 0 260 34" preserveAspectRatio="none" aria-hidden="true">
+          <path id="cpu-spark" />
+        </svg>
+        <div class="metric-note" id="quake">等待系统数据</div>
+      </article>
+      <article class="metric-card purple-card">
+        <div class="metric-label">
+          <span><i class="metric-dot violet"></i>物理内存</span><span>RAM</span>
+        </div>
+        <div class="metric-value">
+          <strong id="memory">—</strong><span id="memory-detail">等待采样</span>
+        </div>
+        <svg viewBox="0 0 260 34" preserveAspectRatio="none" aria-hidden="true">
+          <path id="memory-spark" />
+        </svg>
+        <div class="metric-note">包含系统缓存 · 不代表内存泄漏</div>
+      </article>
+      <article class="metric-card blue-card">
+        <div class="metric-label">
+          <span><i class="metric-dot blue"></i>在线进程</span
+          ><span>PROCESSES</span>
+        </div>
+        <div class="metric-value">
+          <strong id="total-processes">—</strong><span>个活跃生命体</span>
+        </div>
+        <svg viewBox="0 0 260 34" preserveAspectRatio="none" aria-hidden="true">
+          <path id="count-spark" />
+        </svg>
+        <div class="metric-note">
+          <span class="positive" id="born-count">↑ 0 新增</span
+          ><span id="exit-count">↓ 0 退出</span
+          ><span class="session-note">本次会话</span>
+        </div>
+      </article>
+      <article class="metric-card status-card">
+        <div class="metric-label">
+          <span><i class="metric-dot cyan"></i>城市状态</span
+          ><time id="clock"></time>
+        </div>
+        <div class="city-health">
+          <span id="health-icon">◉</span><strong id="health">等待连接</strong>
+        </div>
+        <div class="health-track"><i id="health-bar"></i></div>
+        <div class="metric-note">
+          <span id="sample-age">等待遥测</span><span id="uptime">00:00:00</span>
+        </div>
+      </article>
+    </section>
+    <main class="workspace">
+      <section class="city-panel" aria-label="实时进程城市">
+        <div class="scene-top">
+          <div>
+            <span class="eyebrow">SECTOR 01 / LIVE CITY</span>
+            <h2>你的数字街区 <span id="visible-count">0 / 100</span></h2>
+          </div>
+          <div class="view-switch" role="group" aria-label="城市映射">
+            <button class="active" data-mode="memory" aria-pressed="true">
+              内存天际线</button
+            ><button data-mode="cpu" aria-pressed="false">CPU 热力</button>
+          </div>
+        </div>
+        <canvas
+          id="scene"
+          aria-label="进程 3D 城市，可拖动旋转、滚轮缩放。也可通过右侧列表选择进程。"
+        ></canvas>
+        <div class="scene-corner">
+          <span class="signal-dot"></span
+          ><span id="scene-status">正在建立城市</span>
+        </div>
+        <div class="scene-caption">
+          <span id="mapping-label">建筑高度映射常驻内存</span
+          ><span>拖动旋转 · 滚轮缩放 · 双击建筑聚焦</span>
+        </div>
+        <div class="scene-tooltip" id="scene-tooltip" hidden></div>
+        <div class="scene-error" id="empty-city" hidden></div>
+        <div class="scene-toolbar">
+          <div class="camera-actions">
+            <button id="home" title="重置视角 (H)">
+              ⌂ <span>重置视角</span></button
+            ><button id="focus" title="聚焦选中进程 (F)" disabled>
+              ⌖ <span>聚焦</span></button
+            ><button id="orbit" title="自动环绕" aria-pressed="false">
+              ↻ <span>环绕</span>
+            </button>
+          </div>
+          <div class="render-actions">
+            <button id="motion" aria-pressed="true" title="切换动态效果 (空格)">
+              ◌ <span>动态开启</span></button
+            ><label class="quality-label"
+              ><span>画质</span
+              ><select id="quality" aria-label="画质">
+                <option value="auto">自动</option>
+                <option value="smooth">流畅</option>
+                <option value="sharp">清晰</option>
+              </select></label
+            ><span id="fps" title="实际渲染帧率">— FPS</span>
+          </div>
+        </div>
+      </section>
+      <aside>
+        <div class="aside-tabs" role="tablist">
+          <button
+            class="active"
+            id="tab-processes"
+            role="tab"
+            aria-selected="true"
+            aria-controls="process-panel"
+          >
+            进程街区 <span id="count">0</span></button
+          ><button
+            id="tab-events"
+            role="tab"
+            aria-selected="false"
+            aria-controls="events-panel"
+          >
+            事件 <span id="event-count">0</span></button
+          ><button
+            id="export"
+            title="导出当前筛选后的进程为 CSV"
+            aria-label="导出进程快照"
+          >
+            ⇩
+          </button>
+        </div>
+        <section
+          id="process-panel"
+          role="tabpanel"
+          aria-labelledby="tab-processes"
+          class="process-panel"
+        >
+          <div class="search-wrap">
+            <span>⌕</span
+            ><input
+              id="search"
+              placeholder="搜索进程名称或 PID"
+              aria-label="搜索进程"
+              autocomplete="off"
+            /><kbd>/</kbd>
+          </div>
+          <div class="list-controls">
+            <div class="filters" role="group" aria-label="筛选进程">
+              <button class="active" data-filter="all" aria-pressed="true">
+                全部</button
+              ><button data-filter="active" aria-pressed="false">活跃</button
+              ><button data-filter="manageable" aria-pressed="false">
+                可结束
+              </button>
+            </div>
+            <button id="sort" title="切换内存、CPU、名称排序">内存 ↓</button>
+          </div>
+          <div class="list-heading">
+            <span id="list-summary">进程名称 / PID</span
+            ><span id="list-resource-label">内存 / CPU</span>
+          </div>
+          <div class="process-scroll">
+            <div id="process-list" class="process-list"></div>
+            <div id="list-empty" class="empty-state" hidden>
+              没有匹配的进程<br /><small>试试其他名称或筛选条件</small>
+            </div>
+          </div>
+        </section>
+        <section
+          id="events-panel"
+          role="tabpanel"
+          aria-labelledby="tab-events"
+          class="events-panel"
+          hidden
+        >
+          <div class="event-intro">
+            <span class="eyebrow">CITY CHRONICLE</span>
+            <h3>每一次变化，都有迹可循。</h3>
+            <p>记录本次会话的进程加入、退出和资源预警。</p>
+          </div>
+          <div id="event-list"></div>
+          <div id="events-empty" class="empty-state">
+            城市平稳运行中<small>新的进程事件会出现在这里</small>
+          </div>
+        </section>
+        <section class="detail" id="detail" aria-label="进程详情">
+          <div class="detail-top">
+            <span class="eyebrow">BUILDING INSPECTOR</span
+            ><button
+              id="pin"
+              title="置顶此进程"
+              aria-label="置顶此进程"
+              aria-pressed="false"
+              disabled
+            >
+              ☆
+            </button>
+          </div>
+          <div id="detail-empty">
+            <h3>每座建筑，都有故事。</h3>
+            <p>点击城市建筑或进程列表，查看资源趋势与运行详情。</p>
+            <div class="detail-illustration" aria-hidden="true">
+              <i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+          <div id="detail-content" hidden>
+            <div class="detail-title">
+              <h3 id="detail-name"></h3>
+              <span class="process-status" id="detail-status">运行中</span>
+            </div>
+            <div class="detail-meta" id="detail-meta"></div>
+            <div class="detail-metrics">
+              <div>
+                <label>CPU · 单核基准</label><strong id="detail-cpu"></strong>
+              </div>
+              <div>
+                <label>常驻内存</label><strong id="detail-memory"></strong>
+              </div>
+            </div>
+            <div class="detail-chart-heading">
+              <span id="detail-chart-label">CPU 趋势</span
+              ><button id="chart-mode">切换到内存 ↗</button>
+            </div>
+            <svg
+              class="detail-chart"
+              viewBox="0 0 300 46"
+              preserveAspectRatio="none"
+              aria-label="所选进程资源趋势"
+            >
+              <path id="detail-spark" />
+            </svg>
+            <div class="chart-axis">
+              <span id="detail-history">趋势累积中</span><span>现在</span>
+            </div>
+            <div class="detail-actions">
+              <button id="detail-focus">⌖ 城市中定位</button
+              ><button id="kill" class="danger">结束进程</button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </main>
+    <footer>
+      <span
+        ><i class="signal-dot"></i> 本机实时监控
+        <span class="footer-divider">/</span> 每 2 秒采样</span
+      ><span id="history-label">趋势数据仅保留在本次会话</span
+      ><span>PROCESS METROPOLIS <b id="app-version">0.3.0</b></span>
+    </footer>
+    <div id="toast" role="status"></div>
+    <dialog id="confirm">
+      <form method="dialog">
+        <span class="eyebrow">DEMOLITION AUTHORIZATION</span>
+        <h2>确认结束这个进程？</h2>
+        <p id="confirm-text"></p>
+        <p class="warning">这会强制终止真实进程，未保存的数据可能丢失。</p>
+        <div class="dialog-actions">
+          <button value="cancel">取消</button
+          ><button value="kill" class="danger">确认结束</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="help-dialog">
+      <form method="dialog">
+        <span class="eyebrow">FIELD GUIDE / 操作指南</span>
+        <h2>欢迎来到你的数字都市。</h2>
+        <p>
+          建筑越高，常驻内存占用越多。切换「CPU 热力」可按 CPU
+          使用量查看城市，橙色代表高负载。
+        </p>
+        <dl>
+          <dt>拖动 / 滚轮</dt>
+          <dd>旋转 / 缩放城市</dd>
+          <dt>双击建筑 / F</dt>
+          <dd>聚焦选中进程</dd>
+          <dt>H / 空格</dt>
+          <dd>重置视角 / 切换动态效果</dd>
+          <dt>/</dt>
+          <dd>搜索进程</dd>
+        </dl>
+        <p>
+          趋势只记录打开应用后的数据。雾效表示内存压力，不能据此诊断泄漏。受保护的进程无法结束。
+        </p>
+        <div class="dialog-actions">
+          <button value="close">开始探索 ↗</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

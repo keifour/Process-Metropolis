@@ -1,54 +1,639 @@
-import * as THREE from 'three';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-const $=id=>document.getElementById(id);
-const mb=n=>n>=1073741824?`${(n/1073741824).toFixed(1)} GB`:`${(n/1048576).toFixed(0)} MB`;
-let data,selected=null,sortBy='memory',pendingKill=null,buildings=new Map(),debris=[],lastSnapshot=0;
-const canvas=$('scene');
-let renderer,scene,camera,controls,citizenMesh;
-let frameInterval=1000/24;
-let panicUntil=0;const citizens=Array.from({length:160},()=>({x:(Math.random()-.5)*46,z:(Math.random()-.5)*46,axis:Math.random()>.5?0:1,speed:(Math.random()>.5?1:-1)*(.3+Math.random()*.5)}));
-const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2();
-const slots=Array.from({length:100},(_,i)=>({x:i%10-4.5,z:Math.floor(i/10)-4.5})).sort((a,b)=>(a.x*a.x+a.z*a.z)-(b.x*b.x+b.z*b.z));
-const windowCanvas=document.createElement('canvas');windowCanvas.width=64;windowCanvas.height=128;const wc=windowCanvas.getContext('2d');wc.fillStyle='#17333c';wc.fillRect(0,0,64,128);for(let y=4;y<128;y+=10)for(let x=5;x<64;x+=12){wc.fillStyle=((x+y)%3===0)?'#1c424c':'#9cffff';wc.fillRect(x,y,4,3);}const windowTexture=new THREE.CanvasTexture(windowCanvas);windowTexture.colorSpace=THREE.SRGBColorSpace;
-const palette=[0x58cfc6,0x81a5ef,0xa58ce7,0x459996];
-function toast(text){$('toast').textContent=text;$('toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').style.display='none',4500);}
-function initCity(){
- renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setClearColor(0x080e14,0);
- const gl=renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
- if(debug && /swiftshader|llvmpipe|software|microsoft basic render/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL))){frameInterval=200;renderer.setPixelRatio(.75);}
- renderer.toneMapping=THREE.ACESFilmicToneMapping;
- scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x10242e,.014);
- camera=new THREE.PerspectiveCamera(42,1,.1,300);camera.position.set(39,34,45);
- controls=new OrbitControls(camera,canvas);controls.target.set(0,3,0);controls.enableDamping=true;controls.minDistance=14;controls.maxDistance=95;controls.maxPolarAngle=Math.PI/2.12;controls.enablePan=false;
- scene.add(new THREE.AmbientLight(0xb5daef,1.7));const sun=new THREE.DirectionalLight(0x8edddc,3);sun.position.set(-10,25,10);scene.add(sun);
- const ground=new THREE.Mesh(new THREE.BoxGeometry(48,.6,48),new THREE.MeshStandardMaterial({color:0x10232b,roughness:.85,metalness:.5}));ground.position.y=-.35;scene.add(ground);
- const grid=new THREE.GridHelper(48,16,0x376068,0x1d3c45);grid.position.y=.01;scene.add(grid);
- for(let i=-24;i<=24;i+=6){for(const axis of [0,1]){const road=new THREE.Mesh(new THREE.PlaneGeometry(48,.055),new THREE.MeshBasicMaterial({color:0x70dbc9,transparent:true,opacity:.3}));road.rotation.x=-Math.PI/2;if(axis){road.rotation.z=Math.PI/2;road.position.x=i;}else road.position.z=i;road.position.y=.03;scene.add(road);}}
- const particles=new Float32Array(300*3);for(let i=0;i<particles.length;i+=3){particles[i]=(Math.random()-.5)*90;particles[i+1]=Math.random()*35;particles[i+2]=(Math.random()-.5)*90;}
- scene.add(new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(particles,3)),new THREE.PointsMaterial({color:0x75b6c6,size:.07,transparent:true,opacity:.5})));
- const resize=()=>{const {width,height}=canvas.parentElement.getBoundingClientRect();renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();};new ResizeObserver(resize).observe(canvas.parentElement);resize();
- let down;canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hits=raycaster.intersectObjects([...buildings.values()].map(b=>b.mesh));if(hits[0])select(hits[0].object.userData.pid);});
- citizenMesh=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(citizens.length*3),3)),new THREE.PointsMaterial({color:0xb7fff1,size:.14,transparent:true,opacity:.8}));scene.add(citizenMesh);
- const clock=new THREE.Clock();function animate(){const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;controls.update();
- for(const b of buildings.values()){b.mesh.scale.y=THREE.MathUtils.lerp(b.mesh.scale.y,b.height,.06);b.edges.scale.y=b.mesh.scale.y;b.mesh.position.y=b.mesh.scale.y/2;b.edges.position.y=b.mesh.position.y;b.mesh.material.emissiveIntensity=b.pid===selected?.pid?1.3:.2+Math.min(b.cpu/50,.8);}
- for(let i=debris.length-1;i>=0;i--){const d=debris[i];d.life-=dt;d.mesh.position.addScaledVector(d.velocity,dt);d.velocity.y-=16*dt;d.mesh.rotation.x+=dt;d.mesh.material.opacity=Math.max(0,d.life/2);if(d.life<=0){scene.remove(d.mesh);d.mesh.geometry.dispose();d.mesh.material.dispose();debris.splice(i,1);}}
- const positions=citizenMesh.geometry.attributes.position;for(let i=0;i<citizens.length;i++){const c=citizens[i],fast=performance.now()<panicUntil?5:1;c[c.axis?'z':'x']+=c.speed*dt*fast;if(c.x>24)c.x=-24;if(c.x< -24)c.x=24;if(c.z>24)c.z=-24;if(c.z< -24)c.z=24;positions.setXYZ(i,c.axis?Math.round(c.x/6)*6:c.x,.15,c.axis?c.z:Math.round(c.z/6)*6);}positions.needsUpdate=true;citizenMesh.material.color.setHex(performance.now()<panicUntil?0xffaa77:0xb7fff1);
- const load=data?data.processes.reduce((a,p)=>a+p.cpu,0)/data.cores:0;ground.position.y=load>70?-.35+Math.sin(t*35)*Math.min((load-70)/300,.13):-.35;
- scene.fog.density=data&&data.usedMemory/data.totalMemory>.85?.026:.014;renderer.render(scene,camera);setTimeout(()=>requestAnimationFrame(animate),frameInterval);}
- animate();
+import { City } from "./city.js";
+import {
+  Telemetry,
+  processKey,
+  formatBytes,
+  sparkPath,
+  csvFor,
+} from "./model.js";
+const $ = (id) => document.getElementById(id);
+const model = new Telemetry();
+const started = Date.now(),
+  rows = new Map(),
+  pinned = new Set();
+let city,
+  selected,
+  filter = "all",
+  sortBy = "memory",
+  mode = "memory",
+  chartMode = "cpu",
+  connected = false,
+  pendingKill,
+  killing = false,
+  lastError = "",
+  stats = {};
+let settings = {
+  quality: "auto",
+  motion: !matchMedia("(prefers-reduced-motion: reduce)").matches,
+};
+try {
+  const saved = JSON.parse(localStorage.getItem("metropolis-settings") || "{}");
+  if (["auto", "smooth", "sharp"].includes(saved.quality))
+    settings.quality = saved.quality;
+  if (typeof saved.motion === "boolean") settings.motion = saved.motion;
+} catch {}
+const text = (node, value) => {
+  if (node.textContent !== String(value)) node.textContent = value;
+};
+const time = (stamp) =>
+  new Date(stamp).toLocaleTimeString("zh-CN", { hour12: false });
+const duration = (ms) =>
+  [
+    Math.floor(ms / 3600000),
+    Math.floor(ms / 60000) % 60,
+    Math.floor(ms / 1000) % 60,
+  ]
+    .map((n) => String(n).padStart(2, "0"))
+    .join(":");
+const healthy = () =>
+  connected && model.timestamp && Date.now() - model.timestamp < 8000;
+function saveSettings() {
+  try {
+    localStorage.setItem("metropolis-settings", JSON.stringify(settings));
+  } catch {}
 }
-function removeBuilding(pid,explode=false){const b=buildings.get(pid);if(!b)return;scene.remove(b.mesh,b.edges);if(explode){panicUntil=performance.now()+2200;for(let i=0;i<32;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.3+Math.random()*.6,.5,.4),new THREE.MeshStandardMaterial({color:b.color,emissive:b.color,emissiveIntensity:.7,transparent:true}));m.position.copy(b.mesh.position);m.position.y=Math.random()*b.height;m.position.x+=(Math.random()-.5)*2;m.position.z+=(Math.random()-.5)*2;scene.add(m);debris.push({mesh:m,velocity:new THREE.Vector3((Math.random()-.5)*12,Math.random()*8,(Math.random()-.5)*12),life:2});}}
- b.mesh.geometry.dispose();b.mesh.material.dispose();b.edges.geometry.dispose();b.edges.material.dispose();buildings.delete(pid);
+function toast(message) {
+  text($("toast"), message);
+  $("toast").style.display = "block";
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => ($("toast").style.display = "none"), 4200);
 }
-function updateCity(){if(!scene)return;const top=data.processes.slice(0,100);const ids=new Set(top.map(p=>p.pid));for(const [pid]of buildings)if(!ids.has(pid))removeBuilding(pid,true);
- const occupied=new Set([...buildings.values()].map(b=>b.slot));for(const p of top){let b=buildings.get(p.pid);if(b&&b.identity!==p.identity){removeBuilding(p.pid,true);occupied.delete(b.slot);b=null;}if(!b){let slot=0;while(occupied.has(slot))slot++;occupied.add(slot);const {x,z}=slots[slot];const color=palette[p.pid%palette.length];const mesh=new THREE.Mesh(new THREE.BoxGeometry(2.4,1,2.4),new THREE.MeshStandardMaterial({color,map:windowTexture,emissiveMap:windowTexture,emissive:color,emissiveIntensity:.3,metalness:.55,roughness:.4}));mesh.position.set(x*4.3,.1,z*4.3);mesh.scale.y=.1;mesh.userData.pid=p.pid;const edges=new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry),new THREE.LineBasicMaterial({color:0x97e7e3,transparent:true,opacity:.45}));edges.position.copy(mesh.position);scene.add(mesh,edges);b={pid:p.pid,identity:p.identity,mesh,edges,slot,color};buildings.set(p.pid,b);}
- b.height=Math.max(.6,Math.min(19,Math.sqrt(p.memory/1048576)*.85));b.cpu=p.cpu;b.mesh.material.color.setHex(p.cpu>60?0xe7975c:b.color);}
+function matchingProcesses() {
+  const query = $("search").value.trim().toLocaleLowerCase();
+  return [...model.current.values()]
+    .filter(
+      (p) =>
+        (!query ||
+          p.name.toLocaleLowerCase().includes(query) ||
+          String(p.pid).includes(query)) &&
+        (filter !== "active" || p.cpu >= 1) &&
+        (filter !== "manageable" || p.canKill),
+    )
+    .sort(
+      (a, b) =>
+        Number(pinned.has(processKey(b))) - Number(pinned.has(processKey(a))) ||
+        (sortBy === "name"
+          ? a.name.localeCompare(b.name)
+          : b[sortBy] - a[sortBy]) ||
+        a.pid - b.pid,
+    );
 }
-function select(pid){selected=data?.processes.find(p=>p.pid===pid)||null;renderList();renderDetail();}
-function renderList(){if(!data)return;const query=$('search').value.toLowerCase();const list=data.processes.filter(p=>p.name.toLowerCase().includes(query)||String(p.pid).includes(query)).sort((a,b)=>b[sortBy]-a[sortBy]);$('process-list').replaceChildren(...list.map(p=>{const row=document.createElement('button');row.className='row'+(selected?.pid===p.pid?' selected':'');const icon=document.createElement('span');icon.className='icon';icon.textContent=p.cpu>60?'▥':'▤';const name=document.createElement('div');name.className='row-name';name.textContent=p.name;const pid=document.createElement('small');pid.textContent=`PID ${p.pid} ${p.canKill?'':'· 受保护'}`;name.append(pid);const resource=document.createElement('div');resource.className='row-mem';resource.textContent=mb(p.memory);const cpu=document.createElement('small');cpu.textContent=`${p.cpu.toFixed(1)}% CPU`;resource.append(cpu);row.append(icon,name,resource);row.onclick=()=>select(p.pid);return row;}));}
-function renderDetail(){const box=$('detail');box.replaceChildren();const label=document.createElement('span');label.className='eyebrow';label.textContent='BUILDING INSPECTOR';const title=document.createElement('h3');title.textContent=selected?selected.name:'选择一座建筑';box.append(label,title);if(!selected){const p=document.createElement('p');p.textContent='查看它的资源消耗与运行状态。';box.append(p);return;}const info=document.createElement('div');info.className='detail-data';info.textContent=`PID ${selected.pid} · ${mb(selected.memory)} · ${selected.cpu.toFixed(1)}% CPU`;const button=document.createElement('button');button.className='danger';button.textContent=selected.canKill?'拆除建筑 / 结束进程':'受保护 / 不可结束';button.disabled=!selected.canKill;button.onclick=()=>{pendingKill={...selected};$('confirm-text').textContent=`${selected.name} · PID ${selected.pid}`;$('confirm').showModal();};box.append(info,button);}
-async function poll(){try{const response=await fetch('/api/processes',{cache:'no-store'});const next=await response.json();if(!response.ok)throw Error(next.error);data=next;lastSnapshot=Date.now();$('connection').textContent='实时连接';$('connection').style.color='';const cpu=Math.min(100,data.processes.reduce((a,p)=>a+p.cpu,0)/data.cores);const mem=data.usedMemory/data.totalMemory*100;$('cpu').textContent=`${cpu.toFixed(1)}%`;$('cores').textContent=`/ ${data.cores} 核`;$('memory').textContent=`${mem.toFixed(1)}%`;$('memory-detail').textContent=`${mb(data.usedMemory)} / ${mb(data.totalMemory)}`;$('cpu-bar').style.width=`${cpu}%`;$('memory-bar').style.width=`${mem}%`;$('quake').textContent=cpu>70?'高负载 · 地震预警':'城市结构稳定';$('count').textContent=data.processes.length;$('host').textContent=data.hostname;$('system').textContent=data.platform.toUpperCase();if(selected){selected=data.processes.find(p=>p.pid===selected.pid&&p.identity===selected.identity)||null;}renderList();renderDetail();updateCity();$('empty-city').hidden=true;}catch(e){$('connection').textContent='连接中断';$('connection').style.color='#ffad98';$('empty-city').hidden=false;$('empty-city').textContent=`遥测不可用：${e.message}`;if(selected){selected.canKill=false;renderDetail();}}finally{setTimeout(poll,2000);}}
-$('search').oninput=renderList;$('sort').onclick=()=>{sortBy=sortBy==='memory'?'cpu':'memory';$('sort').textContent=sortBy==='memory'?'内存 ↓':'CPU ↓';renderList();};
-$('confirm').addEventListener('close',async()=>{if($('confirm').returnValue!=='kill'||!pendingKill)return;const target=pendingKill;pendingKill=null;if(Date.now()-lastSnapshot>6000)return toast('遥测已过期，请等待连接恢复');try{const res=await fetch('/api/kill',{method:'POST',headers:{'Content-Type':'application/json','X-Control-Token':data.token},body:JSON.stringify({pid:target.pid,identity:target.identity})});const result=await res.json();if(!res.ok)throw Error(result.error);removeBuilding(target.pid,true);selected=null;renderDetail();toast(`${target.name} 已结束，建筑已拆除`);}catch(e){toast(`无法拆除：${e.message}`);}});
-setInterval(()=>$('clock').textContent=new Date().toLocaleTimeString('en-GB',{hour12:false}),1000);
-try{initCity();}catch(e){toast(`3D 渲染不可用，请启用 WebGL：${e.message}`);}poll();
+function makeRow() {
+  const row = document.createElement("button");
+  row.className = "row";
+  row.type = "button";
+  const icon = document.createElement("span");
+  icon.className = "row-icon";
+  icon.textContent = "▥";
+  icon.setAttribute("aria-hidden", "true");
+  const nameWrap = document.createElement("div");
+  nameWrap.className = "row-name";
+  const name = document.createElement("span"),
+    pid = document.createElement("small");
+  nameWrap.append(name, pid);
+  const resource = document.createElement("div");
+  resource.className = "row-mem";
+  const value = document.createElement("span"),
+    cpu = document.createElement("small");
+  resource.append(value, cpu);
+  row.append(icon, nameWrap, resource);
+  row.parts = { name, pid, value, cpu };
+  row.onclick = () => select(row.process);
+  return row;
+}
+function renderList() {
+  const list = matchingProcesses(),
+    keys = new Set(list.map(processKey)),
+    container = $("process-list");
+  for (const [key, row] of rows)
+    if (!keys.has(key)) {
+      row.remove();
+      rows.delete(key);
+    }
+  let cursor = container.firstElementChild;
+  for (const p of list) {
+    const key = processKey(p);
+    let row = rows.get(key);
+    if (!row) {
+      row = makeRow();
+      rows.set(key, row);
+    }
+    row.process = p;
+    row.dataset.pid = p.pid;
+    row.dataset.hot = String(p.cpu > 75);
+    row.classList.toggle("selected", selected?.key === key);
+    row.classList.toggle("row-pinned", pinned.has(key));
+    row.setAttribute("aria-pressed", String(selected?.key === key));
+    text(row.parts.name, p.name);
+    text(row.parts.pid, `PID ${p.pid}${p.canKill ? "" : " · 受保护"}`);
+    text(row.parts.value, formatBytes(p.memory));
+    text(row.parts.cpu, `${p.cpu.toFixed(1)}% CPU`);
+    row.title = `${p.name} · PID ${p.pid}`;
+    // Keep nodes, keyboard focus and scroll position instead of rebuilding the list every sample.
+    if (row !== cursor) container.insertBefore(row, cursor);
+    else cursor = cursor.nextElementSibling;
+  }
+  $("list-empty").hidden = list.length > 0;
+  text(
+    $("list-summary"),
+    list.length === model.current.size
+      ? "进程名称 / PID"
+      : `筛选结果 ${list.length} / ${model.current.size}`,
+  );
+}
+function select(process) {
+  if (!process) {
+    selected = null;
+    city?.select(null);
+    renderList();
+    renderDetail();
+    return;
+  }
+  const key = processKey(process),
+    live = model.current.get(key);
+  selected = { ...(live || process), key, alive: !!live };
+  city?.select(key);
+  if (city && selected.alive && !city.buildings.has(key)) updateCity();
+  $("scene-tooltip").hidden = true;
+  renderList();
+  renderDetail();
+}
+function updateDetailAvailability() {
+  const live = selected?.alive && healthy();
+  $("kill").disabled = !live || !selected?.canKill || killing;
+  text(
+    $("kill"),
+    killing
+      ? "正在结束…"
+      : !selected?.alive
+        ? "进程已退出"
+        : !healthy()
+          ? "等待实时连接"
+          : selected.canKill
+            ? "结束进程"
+            : "受保护",
+  );
+  $("detail-focus").disabled = !selected?.alive || !city;
+  $("focus").disabled = !selected?.alive || !city;
+}
+function renderDetail() {
+  const has = !!selected;
+  $("detail-empty").hidden = has;
+  $("detail-content").hidden = !has;
+  $("pin").disabled = !has || !selected.alive;
+  if (!has) {
+    updateDetailAvailability();
+    return;
+  }
+  text($("detail-name"), selected.name);
+  $("detail-name").title = selected.name;
+  const status = $("detail-status");
+  text(status, selected.alive ? "运行中" : "已退出");
+  status.classList.toggle("exited", !selected.alive);
+  text(
+    $("detail-meta"),
+    `PID ${selected.pid}  /  PPID ${selected.ppid}${selected.sessionId !== undefined ? `  /  会话 ${selected.sessionId}` : `  /  UID ${selected.uid}`}`,
+  );
+  text($("detail-cpu"), `${selected.cpu.toFixed(1)}%`);
+  text($("detail-memory"), formatBytes(selected.memory));
+  const samples = model.processHistory.get(selected.key) || [];
+  $("detail-spark").setAttribute(
+    "d",
+    sparkPath(
+      samples.map((s) => s[chartMode]),
+      300,
+      46,
+    ),
+  );
+  $("detail-spark").style.stroke =
+    chartMode === "cpu" ? "var(--cyan)" : "var(--purple)";
+  text(
+    $("detail-history"),
+    samples.length < 2
+      ? "趋势累积中"
+      : `${Math.round((samples.at(-1).timestamp - samples[0].timestamp) / 1000)} 秒 · ${samples.length} 个采样`,
+  );
+  text(
+    $("detail-chart-label"),
+    chartMode === "cpu" ? "CPU 趋势 · 单核基准" : "常驻内存趋势",
+  );
+  text($("chart-mode"), chartMode === "cpu" ? "切换到内存 ↗" : "切换到 CPU ↗");
+  const pin = pinned.has(selected.key);
+  text($("pin"), pin ? "★" : "☆");
+  $("pin").setAttribute("aria-pressed", String(pin));
+  $("pin").title = pin ? "取消置顶" : "置顶此进程";
+  $("pin").setAttribute("aria-label", $("pin").title);
+  updateDetailAvailability();
+}
+function renderEvents() {
+  text($("event-count"), model.events.length);
+  text($("nav-event-count"), model.events.length);
+  $("events-empty").hidden = model.events.length > 0;
+  const existing = new Map(
+    [...$("event-list").children].map((el) => [Number(el.dataset.id), el]),
+  );
+  const ids = new Set(model.events.map((e) => e.id));
+  for (const [id, node] of existing) if (!ids.has(id)) node.remove();
+  let cursor = $("event-list").firstElementChild;
+  for (const event of model.events) {
+    let row = existing.get(event.id);
+    if (!row) {
+      row = document.createElement("div");
+      row.className = "event-row";
+      row.dataset.id = event.id;
+      row.dataset.type = event.type;
+      const icon = document.createElement("span");
+      icon.className = "event-icon";
+      icon.textContent =
+        event.type === "start" ? "↗" : event.type === "exit" ? "↘" : "△";
+      const content = document.createElement("div"),
+        label = document.createElement(event.process ? "button" : "p");
+      label.textContent = event.text;
+      if (event.process) {
+        label.className = "event-process";
+        label.onclick = () => select(event.process);
+        label.title = "查看此进程详情";
+      }
+      const meta = document.createElement("small");
+      meta.textContent = `${time(event.timestamp)}${event.process ? ` · PID ${event.process.pid}` : ""}`;
+      content.append(label, meta);
+      row.append(icon, content);
+    }
+    if (row !== cursor) $("event-list").insertBefore(row, cursor);
+    else cursor = cursor.nextElementSibling;
+  }
+}
+function renderDashboard() {
+  const sample = model.latest,
+    previous = model.history.at(-2),
+    data = model.data;
+  text($("cpu"), `${sample.cpu.toFixed(1)}%`);
+  text($("cores"), `${data.cores} 逻辑核`);
+  text(
+    $("cpu-change"),
+    previous
+      ? `${sample.cpu >= previous.cpu ? "↗" : "↘"} ${Math.abs(sample.cpu - previous.cpu).toFixed(1)}% 较上次`
+      : "首个采样",
+  );
+  text($("memory"), `${sample.memory.toFixed(1)}%`);
+  text(
+    $("memory-detail"),
+    `${formatBytes(data.usedMemory)} / ${formatBytes(data.totalMemory)}`,
+  );
+  text($("total-processes"), sample.count);
+  text($("count"), sample.count);
+  text($("born-count"), `↑ ${model.starts} 新增`);
+  text($("exit-count"), `↓ ${model.exits} 退出`);
+  text(
+    $("quake"),
+    sample.cpu >= 80
+      ? "高负载 · 城市震动预警"
+      : "最近 2 分钟 · 按逻辑核数归一化",
+  );
+  $("cpu-spark").setAttribute(
+    "d",
+    sparkPath(
+      model.history.map((s) => s.cpu),
+      260,
+      34,
+      100,
+    ),
+  );
+  $("memory-spark").setAttribute(
+    "d",
+    sparkPath(
+      model.history.map((s) => s.memory),
+      260,
+      34,
+      100,
+    ),
+  );
+  $("count-spark").setAttribute(
+    "d",
+    sparkPath(
+      model.history.map((s) => s.count),
+      260,
+      34,
+    ),
+  );
+  const pressure = sample.cpu >= 80 || sample.memory >= 85;
+  text(
+    $("health"),
+    sample.memory >= 85
+      ? "内存压力偏高"
+      : sample.cpu >= 80
+        ? "系统负载偏高"
+        : "城市平稳运行",
+  );
+  $("health").style.color = pressure ? "var(--amber)" : "var(--text)";
+  $("health-icon").style.color = pressure ? "var(--amber)" : "var(--cyan)";
+  $("health-bar").style.width =
+    `${Math.max(4, 100 - Math.max(sample.cpu, sample.memory))}%`;
+  $("health-bar").style.background = pressure ? "var(--amber)" : "";
+  text(
+    $("history-label"),
+    `${model.history.length} 个采样 · 最多保留 2 分钟 · 仅本次会话`,
+  );
+  if (data.version) text($("app-version"), data.version);
+  text($("host"), data.hostname);
+  text($("system"), data.platform.toUpperCase());
+}
+function updateCity() {
+  if (!city || !model.data) return;
+  city.update([...model.current.values()], {
+    cpu: model.latest.cpu,
+    memory: model.latest.memory,
+    mode,
+    selected: selected?.key,
+  });
+  text(
+    $("visible-count"),
+    `${city.buildings.size} / ${Math.min(100, model.current.size)}`,
+  );
+  text(
+    $("scene-status"),
+    `${city.buildings.size} 座建筑 / ${model.current.size} 个进程`,
+  );
+}
+function activateTab(tab) {
+  const events = tab === "events";
+  $("events-panel").hidden = !events;
+  $("process-panel").hidden = events;
+  for (const [id, on] of [
+    ["tab-events", events],
+    ["tab-processes", !events],
+  ]) {
+    $(id).classList.toggle("active", on);
+    $(id).setAttribute("aria-selected", String(on));
+  }
+  $("nav-city").classList.toggle("active", !events);
+  $("nav-events").classList.toggle("active", events);
+}
+function tick() {
+  text($("clock"), time(Date.now()));
+  text($("uptime"), duration(Date.now() - started));
+  const age = model.timestamp
+    ? Math.max(0, Math.floor((Date.now() - model.timestamp) / 1000))
+    : null;
+  const ok = healthy();
+  text(
+    $("connection"),
+    !model.timestamp
+      ? "正在连接"
+      : !connected
+        ? "连接中断"
+        : ok
+          ? "实时连接"
+          : "采样延迟",
+  );
+  $("connection").parentElement.classList.toggle(
+    "offline",
+    !!model.timestamp && !ok,
+  );
+  text($("sample-age"), age === null ? "等待遥测" : `${age} 秒前更新`);
+  updateDetailAvailability();
+}
+async function poll() {
+  try {
+    const response = await fetch("/api/processes", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      }),
+      data = await response.json();
+    if (!response.ok) throw Error(data.error || `HTTP ${response.status}`);
+    connected = true;
+    lastError = "";
+    if (model.ingest(data)) {
+      if (selected) {
+        const live = model.current.get(selected.key);
+        selected = live
+          ? { ...live, key: selected.key, alive: true }
+          : { ...selected, alive: false };
+      }
+      renderDashboard();
+      renderList();
+      renderDetail();
+      renderEvents();
+      updateCity();
+    }
+    if (city) $("empty-city").hidden = true;
+  } catch (error) {
+    connected = false;
+    if (lastError !== error.message) {
+      lastError = error.message;
+      toast(`连接暂时不可用：${error.message}`);
+    }
+    if (city) {
+      $("empty-city").hidden = false;
+      text($("empty-city"), "遥测连接中断，正在重连。保留最后一次城市快照。");
+    }
+  } finally {
+    tick();
+    setTimeout(poll, 2000);
+  }
+}
+$("search").addEventListener("input", renderList);
+for (const button of document.querySelectorAll("[data-filter]"))
+  button.onclick = () => {
+    filter = button.dataset.filter;
+    for (const other of document.querySelectorAll("[data-filter]")) {
+      const on = other === button;
+      other.classList.toggle("active", on);
+      other.setAttribute("aria-pressed", String(on));
+    }
+    renderList();
+  };
+$("sort").onclick = () => {
+  const modes = ["memory", "cpu", "name"];
+  sortBy = modes[(modes.indexOf(sortBy) + 1) % modes.length];
+  text($("sort"), { memory: "内存 ↓", cpu: "CPU ↓", name: "名称 A–Z" }[sortBy]);
+  renderList();
+};
+for (const button of document.querySelectorAll("[data-mode]"))
+  button.onclick = () => {
+    mode = button.dataset.mode;
+    for (const other of document.querySelectorAll("[data-mode]")) {
+      const on = other === button;
+      other.classList.toggle("active", on);
+      other.setAttribute("aria-pressed", String(on));
+    }
+    text(
+      $("mapping-label"),
+      mode === "memory"
+        ? "建筑高度映射常驻内存"
+        : "建筑高度与色温映射 CPU · 单核基准",
+    );
+    updateCity();
+  };
+$("tab-events").onclick = $("nav-events").onclick = () => activateTab("events");
+$("tab-processes").onclick = $("nav-city").onclick = () =>
+  activateTab("processes");
+$("pin").onclick = () => {
+  if (!selected) return;
+  pinned.has(selected.key)
+    ? pinned.delete(selected.key)
+    : pinned.add(selected.key);
+  renderList();
+  renderDetail();
+};
+$("chart-mode").onclick = () => {
+  chartMode = chartMode === "cpu" ? "memory" : "cpu";
+  renderDetail();
+};
+function focusSelected() {
+  if (!selected?.alive) return;
+  if (!city?.focus(selected.key)) {
+    updateCity();
+    city?.focus(selected.key);
+  }
+}
+$("focus").onclick = $("detail-focus").onclick = focusSelected;
+$("home").onclick = () => city?.home();
+$("orbit").onclick = () => {
+  if (!city) return;
+  city.autoRotate = !city.autoRotate;
+  if (city.autoRotate && !settings.motion) toggleMotion();
+  $("orbit").setAttribute("aria-pressed", String(city.autoRotate));
+};
+function toggleMotion() {
+  settings.motion = !settings.motion;
+  if (city) city.motion = settings.motion;
+  $("motion").setAttribute("aria-pressed", String(settings.motion));
+  text(
+    $("motion").querySelector("span"),
+    settings.motion ? "动态开启" : "安静模式",
+  );
+  saveSettings();
+}
+$("motion").onclick = toggleMotion;
+$("quality").value = settings.quality;
+$("quality").onchange = () => {
+  settings.quality = $("quality").value;
+  city?.setQuality(settings.quality);
+  saveSettings();
+};
+$("help").onclick = () => $("help-dialog").showModal();
+$("export").onclick = () => {
+  if (!model.data) return toast("等待采样后即可导出");
+  const list = matchingProcesses();
+  const url = URL.createObjectURL(
+    new Blob([csvFor(list)], { type: "text/csv;charset=utf-8" }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `process-metropolis-${new Date().toISOString().replaceAll(":", "-").slice(0, 19)}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(`已导出 ${list.length} 个进程的当前快照`);
+};
+$("kill").onclick = () => {
+  if (!selected?.alive || !selected.canKill || !healthy()) return;
+  pendingKill = { ...selected };
+  text(
+    $("confirm-text"),
+    `${selected.name} · PID ${selected.pid} · ${formatBytes(selected.memory)}`,
+  );
+  $("confirm").returnValue = "";
+  $("confirm").showModal();
+};
+$("confirm").addEventListener("close", async () => {
+  const target = pendingKill;
+  pendingKill = null;
+  if ($("confirm").returnValue !== "kill" || !target) return;
+  if (!healthy()) return toast("实时数据已过期，请等待重新连接");
+  killing = true;
+  updateDetailAvailability();
+  try {
+    const response = await fetch("/api/kill", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Control-Token": model.data.token,
+      },
+      body: JSON.stringify({ pid: target.pid, identity: target.identity }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error);
+    toast(`${target.name} 已结束，等待城市更新`);
+  } catch (error) {
+    toast(`无法结束进程：${error.message}`);
+  } finally {
+    killing = false;
+    updateDetailAvailability();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    event.target.closest("input,select,textarea,dialog") ||
+    document.querySelector("dialog[open]")
+  )
+    return;
+  if (event.key === "/") {
+    event.preventDefault();
+    activateTab("processes");
+    $("search").focus();
+  } else if (event.key === "?") $("help-dialog").showModal();
+  else if (event.code === "Space") {
+    if (event.target.closest("button,a")) return;
+    event.preventDefault();
+    toggleMotion();
+  } else if (event.key === "Escape") {
+    select(null);
+  } else if (event.key.toLowerCase() === "h") city?.home();
+  else if (event.key.toLowerCase() === "f") focusSelected();
+});
+try {
+  city = new City($("scene"), {
+    onSelect: select,
+    onHover: (process, event) => {
+      const tip = $("scene-tooltip");
+      tip.hidden = !process;
+      if (!process) return;
+      text(
+        tip,
+        `${process.name}\nPID ${process.pid} · ${formatBytes(process.memory)}\nCPU ${process.cpu.toFixed(1)}% · 双击聚焦`,
+      );
+      const rect = $("scene").getBoundingClientRect();
+      tip.style.left = `${Math.min(event.clientX - rect.left + 14, rect.width - 245)}px`;
+      tip.style.top = `${Math.min(event.clientY - rect.top + 12, rect.height - 175)}px`;
+    },
+    onStats: (value) => {
+      stats = value;
+      text($("fps"), `${value.fps} FPS`);
+      $("fps").title = value.software
+        ? "软件图形模式 · 可选择流畅画质"
+        : "硬件图形模式 · 自动平衡清晰度与帧率";
+    },
+  });
+  city.motion = settings.motion;
+  city.setQuality(settings.quality);
+  $("motion").setAttribute("aria-pressed", String(settings.motion));
+  text(
+    $("motion").querySelector("span"),
+    settings.motion ? "动态开启" : "安静模式",
+  );
+} catch (error) {
+  $("empty-city").hidden = false;
+  text(
+    $("empty-city"),
+    `3D 视图暂不可用：${error.message}。右侧监控仍可使用。`,
+  );
+  for (const id of ["home", "focus", "orbit", "motion", "quality"])
+    $(id).disabled = true;
+}
+Object.defineProperty(window, "__metropolisDiagnostics", {
+  get: () => ({
+    ...stats,
+    samples: model.history.length,
+    events: model.events.length,
+    mode,
+  }),
+});
+window.addEventListener("pagehide", () => city?.destroy(), { once: true });
+tick();
+setInterval(tick, 1000);
+poll();

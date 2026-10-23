@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 export async function startServer({port = Number(process.env.PORT || 3000)} = {}) {
 const token=randomBytes(32).toString('hex');
+const version=JSON.parse(await readFile(new URL('package.json',import.meta.url),'utf8')).version;
 let state, failure, sampling;
 function sample(){
  if(sampling)return sampling;
@@ -14,13 +15,13 @@ function sample(){
 }
 await sample();
 const interval=setInterval(sample,2000);interval.unref();
-const files={'/':'public/index.html','/app.js':'public/app.js','/style.css':'public/style.css','/vendor/three.js':'node_modules/three/build/three.module.js','/vendor/three.core.js':'node_modules/three/build/three.core.js','/vendor/OrbitControls.js':'node_modules/three/examples/jsm/controls/OrbitControls.js'};
+const files={'/':'public/index.html','/app.js':'public/app.js','/city.js':'public/city.js','/model.js':'public/model.js','/style.css':'public/style.css','/vendor/three.js':'node_modules/three/build/three.module.js','/vendor/three.core.js':'node_modules/three/build/three.core.js','/vendor/OrbitControls.js':'node_modules/three/examples/jsm/controls/OrbitControls.js'};
 const server=http.createServer(async(req,res)=>{
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
   const host=req.headers.host;
   if(![`127.0.0.1:${port}`,`localhost:${port}`,`[::1]:${port}`].includes(host)) return json(403,{error:'仅允许本机访问'});
   const path=new URL(req.url,`http://${host}`).pathname;
-  if(path==='/api/processes' && req.method==='GET') return failure?json(503,{error:failure}):json(200,{...state,token});
+  if(path==='/api/processes' && req.method==='GET') return failure?json(503,{error:failure}):json(200,{...state,token,version});
   if(path==='/api/kill' && req.method==='POST') {
     if(req.headers.origin!==`http://${host}`) return json(403,{error:'来源校验失败'});
     const supplied=Buffer.from(req.headers['x-control-token']||'');

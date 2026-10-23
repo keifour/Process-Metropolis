@@ -7,7 +7,7 @@ test('HTTP workflow and controlled process termination',{timeout:90000},async t=
  const server=spawn(process.execPath,['server.mjs'],{cwd:new URL('..',import.meta.url),env:{...process.env,PORT:'3219'},stdio:['ignore','pipe','pipe']});
  t.after(()=>server.kill());
  await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);server.once('exit',code=>reject(Error(`server exited ${code}`)));});
- for(const path of ['/','/app.js','/style.css','/vendor/three.js','/vendor/three.core.js','/vendor/OrbitControls.js'])assert.equal((await fetch(base+path)).status,200,path);
+ for(const path of ['/','/city.js','/model.js','/app.js','/style.css','/vendor/three.js','/vendor/three.core.js','/vendor/OrbitControls.js'])assert.equal((await fetch(base+path)).status,200,path);
  const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});t.after(()=>child.kill());
  let state;
  for(let attempt=0;attempt<40;attempt++){
