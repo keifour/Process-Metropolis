@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "version": "0.2.1",
+  "platform": "win32",
+  "packaged": true,
+  "processCount": 140,
+  "selfProtected": true,
+  "ui": {
+    "rows": 139,
+    "webgl": true,
+    "selected": true
+  }
+}
