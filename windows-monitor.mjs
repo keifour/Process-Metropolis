@@ -18,7 +18,7 @@ export function parseWindowsProcesses(output){
 }
 export async function windowsSnapshot(){
  return parseWindowsProcesses(await powershell(`${nativeProcessApi}
-$sessionId = (Get-Process -Id ${process.pid}).SessionId; $parents = [MetropolisNative]::Parents(); $items = @(Get-Process | ForEach-Object { $p = $_; $created = $null; $cpu = 0; $memory = 0; $session = -1; try { $created = $p.StartTime.ToUniversalTime().Ticks.ToString(); $cpu = $p.TotalProcessorTime.TotalSeconds; $memory = $p.WorkingSet64; $session = $p.SessionId } catch {}; [PSCustomObject]@{ pid = $p.Id; ppid = $parents[[int]$p.Id]; name = $p.ProcessName; memory = [double]$memory; cpuSeconds = [double]$cpu; identity = $created; sessionId = $session } }); [PSCustomObject]@{ sessionId = $sessionId; processes = $items } | ConvertTo-Json -Depth 4 -Compress`));
+$sessionId = (Get-Process -Id ${process.pid}).SessionId; $parents = [MetropolisNative]::Parents(); $items = @(Get-Process | ForEach-Object { $p = $_; try { $name = $p.ProcessName } catch { return }; $created = $null; $cpu = 0; $memory = 0; $session = -1; try { $created = $p.StartTime.ToUniversalTime().Ticks.ToString(); $cpu = $p.TotalProcessorTime.TotalSeconds; $memory = $p.WorkingSet64; $session = $p.SessionId } catch {}; [PSCustomObject]@{ pid = $p.Id; ppid = $parents[[int]$p.Id]; name = $name; memory = [double]$memory; cpuSeconds = [double]$cpu; identity = $created; sessionId = $session } }); [PSCustomObject]@{ sessionId = $sessionId; processes = $items } | ConvertTo-Json -Depth 4 -Compress`));
 }
 export async function windowsIdentity(pid){
  if(!Number.isInteger(pid)||pid<1)throw Error('无效 PID');
