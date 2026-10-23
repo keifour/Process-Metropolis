@@ -1,0 +1,13 @@
+Downloading Electron binary...
+
+file:///D:/a/Process-Metropolis/Process-Metropolis/scripts/smoke-desktop.mjs:21
+ if(!result?.ok)throw Error(result?.error||'Desktop smoke test timed out');
+                      ^
+
+Error: Error: Windows PowerShell 进程采样超时（60 秒）
+    at Object.refresh (file:///D:/a/Process-Metropolis/Process-Metropolis/server.mjs:41:90)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///D:/a/Process-Metropolis/Process-Metropolis/desktop/main.mjs:25:15
+    at file:///D:/a/Process-Metropolis/Process-Metropolis/scripts/smoke-desktop.mjs:21:23
+
+Node.js v22.23.4

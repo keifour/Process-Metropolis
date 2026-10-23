@@ -1,0 +1,1 @@
+{"ok":false,"error":"Error: Windows PowerShell 进程采样超时（60 秒）\n    at Object.refresh (file:///D:/a/Process-Metropolis/Process-Metropolis/server.mjs:41:90)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async file:///D:/a/Process-Metropolis/Process-Metropolis/desktop/main.mjs:25:15"}
