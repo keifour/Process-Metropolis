@@ -45,10 +45,9 @@ public static class MetropolisNative {
 
 public static class Program {
  static readonly JavaScriptSerializer Json=new JavaScriptSerializer();
+ public class Request {public long id {get;set;}public string[] args {get;set;}}
  static string Identity(Process p){return p.StartTime.ToUniversalTime().Ticks.ToString(CultureInfo.InvariantCulture);}
- public static int Main(string[] args){
-  Console.OutputEncoding=new UTF8Encoding(false);
-  try {
+ static object Execute(string[] args){
    string command=args.Length==0?"list":args[0];
    if(command=="list"){
     Dictionary<int,int> parents=MetropolisNative.Parents();
@@ -60,12 +59,11 @@ public static class Program {
      parents.TryGetValue(p.Id,out parent);
      processes.Add(new {pid=p.Id,ppid=parent,name=name,memory=memory,cpuSeconds=cpu,identity=identity,sessionId=session});
     }
-    Console.WriteLine(Json.Serialize(new {sessionId=Process.GetCurrentProcess().SessionId,processes=processes}));
-    return 0;
+    return new {sessionId=Process.GetCurrentProcess().SessionId,processes=processes};
    }
    int pid;if(args.Length<2||!int.TryParse(args[1],out pid)||pid<1)throw new ArgumentException("Invalid PID");
    using(Process p=Process.GetProcessById(pid)){
-    if(command=="identity"){Console.WriteLine(Identity(p));return 0;}
+    if(command=="identity"){return Identity(p);}
     if(command!="kill"||args.Length!=3||pid<5)throw new ArgumentException("Invalid operation");
     IntPtr pinnedHandle=p.Handle;
     if(Identity(p)!=args[2])throw new InvalidOperationException("Process identity changed");
@@ -74,8 +72,22 @@ public static class Program {
     if(p.SessionId==0||p.SessionId!=Process.GetCurrentProcess().SessionId)throw new InvalidOperationException("Protected system session");
     using(WindowsIdentity current=WindowsIdentity.GetCurrent())if(MetropolisNative.OwnerSid(pid)!=current.User.Value)throw new InvalidOperationException("Only current-user processes can be terminated");
     p.Kill();if(!p.WaitForExit(5000))throw new TimeoutException("Process termination timed out");
-    Console.WriteLine("{\"ok\":true}");return 0;
+    return new {ok=true};
    }
-  }catch(Exception error){Console.Error.WriteLine(error.Message);return 1;}
+
+ }
+ public static int Main(string[] args){
+  Console.OutputEncoding=new UTF8Encoding(false);
+  try{Process.GetCurrentProcess().PriorityClass=ProcessPriorityClass.Normal;}catch{}
+  if(args.Length>0&&args[0]=="server"){
+   string line;while((line=Console.ReadLine())!=null){
+    long id=0;
+    try{Request request=Json.Deserialize<Request>(line);id=request.id;Console.WriteLine(Json.Serialize(new {id=id,result=Execute(request.args)}));}
+    catch(Exception error){Console.WriteLine(Json.Serialize(new {id=id,error=error.Message}));}
+   }
+   return 0;
+  }
+  try{Console.WriteLine(Json.Serialize(Execute(args)));return 0;}
+  catch(Exception error){Console.Error.WriteLine(error.Message);return 1;}
  }
 }
