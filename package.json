@@ -1,0 +1,1 @@
+{"name":"process-metropolis","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"node server.mjs","start":"node server.mjs","test":"node --test"},"dependencies":{"three":"0.180.0"}}
