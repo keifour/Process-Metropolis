@@ -5,7 +5,10 @@ const exec=promisify(execFile);
 export const criticalWindowsNames=new Set(['system','idle','registry','smss','csrss','wininit','services','lsass','lsaiso','winlogon','svchost','fontdrvhost','dwm','memory compression','secure system']);
 export async function powershell(command){
  const executable=join(process.env.SystemRoot || 'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
- const {stdout}=await exec(executable,['-NoLogo','-NoProfile','-NonInteractive','-Command',`$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); ${command}`],{windowsHide:true,maxBuffer:16*1024*1024,timeout:20000});
+ let stdout;
+ try { ({stdout}=await exec(executable,['-NoLogo','-NoProfile','-NonInteractive','-Command',`$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); ${command}`],{windowsHide:true,maxBuffer:16*1024*1024,timeout:60000})); } catch(error) {
+  throw new Error(error.killed ? 'Windows PowerShell 进程采样超时（60 秒）' : `Windows PowerShell 采样失败：${error.stderr || error.message}`, {cause:error});
+ }
  return stdout.replace(/^\uFEFF/,'').trim();
 }
 export function parseWindowsProcesses(output){

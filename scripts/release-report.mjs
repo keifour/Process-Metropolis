@@ -8,7 +8,7 @@ const report={status:process.env.BUILD_STATUS,commit:process.env.GITHUB_SHA,ref,
 const entries=[];
 const add=(name,body)=>{const hash=git(['hash-object','-w','--stdin'],body);entries.push(`100644 blob ${hash}\t${name}`);};
 add('report.json',JSON.stringify(report,null,2));
-for(const name of ['install.log','tests.log','build.log','smoke.log','publish.log','release.json','smoke-desktop.json','smoke-portable.json','SHA256SUMS.txt']){
+for(const name of ['smoke-source.json','smoke-source.log','install.log','tests.log','build.log','smoke.log','publish.log','release.json','smoke-desktop.json','smoke-portable.json','SHA256SUMS.txt']){
  const path=`artifacts/${name}`;if(existsSync(path))add(name,readFileSync(path));
 }
 const tree=git(['mktree'],entries.join('\n')+'\n');

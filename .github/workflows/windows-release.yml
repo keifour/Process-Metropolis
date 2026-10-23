@@ -34,6 +34,11 @@ jobs:
           New-Item -ItemType Directory -Force artifacts | Out-Null
           npm test 2>&1 | Tee-Object artifacts/tests.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate desktop before packaging
+        shell: pwsh
+        run: |
+          node scripts/smoke-desktop.mjs --report artifacts/smoke-source.json 2>&1 | Tee-Object artifacts/smoke-source.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Record build progress
         env:
           BUILD_STATUS: building

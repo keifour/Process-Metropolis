@@ -38,7 +38,7 @@ const server=http.createServer(async(req,res)=>{
 });
 await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
 port=server.address().port;
-return {url:`http://127.0.0.1:${port}`,close:()=>{clearInterval(interval);server.closeAllConnections();return new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}};
+return {url:`http://127.0.0.1:${port}`,refresh:async()=>{await sample();if(failure)throw Error(failure);return state;},close:()=>{clearInterval(interval);server.closeAllConnections();return new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}};
 }
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const service=await startServer();console.log(`Process Metropolis: ${service.url}`);
