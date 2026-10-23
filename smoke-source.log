@@ -1,0 +1,17 @@
+Downloading Electron binary...
+
+{
+  "ok": true,
+  "version": "0.3.0",
+  "platform": "win32",
+  "packaged": false,
+  "processCount": 158,
+  "selfProtected": true,
+  "ui": {
+    "rows": 157,
+    "webgl": true,
+    "selected": true,
+    "drawCalls": 6,
+    "fps": 18
+  }
+}
