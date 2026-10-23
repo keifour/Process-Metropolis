@@ -1,0 +1,42 @@
+
+> process-metropolis@0.2.0 pretest
+> node scripts/prepare-windows.cjs
+
+
+> process-metropolis@0.2.0 test
+> node --test
+
+TAP version 13
+# Subtest: parses process metrics and command names with spaces
+ok 1 - parses process metrics and command names with spaces
+  ---
+  duration_ms: 8.4946
+  type: 'test'
+  ...
+# Subtest: samples real processes and protects monitor and ancestors
+ok 2 - samples real processes and protects monitor and ancestors
+  ---
+  duration_ms: 1067.0653
+  type: 'test'
+  ...
+# Subtest: HTTP workflow and controlled process termination
+ok 3 - HTTP workflow and controlled process termination
+  ---
+  duration_ms: 2478.5054
+  type: 'test'
+  ...
+# Subtest: Windows process metrics preserve creation identity and names
+ok 4 - Windows process metrics preserve creation identity and names
+  ---
+  duration_ms: 3.4968
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4412.3861
