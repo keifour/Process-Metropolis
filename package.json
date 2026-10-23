@@ -1,1 +1,57 @@
-{"name":"process-metropolis","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"node server.mjs","start":"node server.mjs","test":"node --test"},"dependencies":{"three":"0.180.0"}}
+{
+  "name": "process-metropolis",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "test": "node --test",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win portable --x64 --publish never",
+    "smoke:desktop": "node scripts/smoke-desktop.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "description": "A live cyberpunk city powered by your system processes",
+  "author": "keifour",
+  "main": "desktop/main.mjs",
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "io.github.keifour.processmetropolis",
+    "productName": "Process Metropolis",
+    "artifactName": "Process-Metropolis-${version}-windows-${arch}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "desktop/**/*",
+      "public/**/*",
+      "server.mjs",
+      "monitor.mjs",
+      "windows-monitor.mjs",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "portable": {
+      "requestExecutionLevel": "user"
+    }
+  }
+}
