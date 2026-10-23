@@ -1,6 +1,7 @@
 const {mkdir,copyFile}=require('node:fs/promises');
 const path=require('node:path');
 module.exports=async context=>{
+ require('./prepare-windows.cjs')(context.packager.info.appDir);
  const target=path.join(context.packager.info.appDir,'public','vendor');
  await mkdir(target,{recursive:true});
  // electron-builder excludes dependency examples by default; retain the one runtime module we use.

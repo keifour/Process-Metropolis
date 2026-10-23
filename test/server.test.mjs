@@ -9,8 +9,14 @@ test('HTTP workflow and controlled process termination',{timeout:90000},async t=
  await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);server.once('exit',code=>reject(Error(`server exited ${code}`)));});
  for(const path of ['/','/app.js','/style.css','/vendor/three.js','/vendor/three.core.js','/vendor/OrbitControls.js'])assert.equal((await fetch(base+path)).status,200,path);
  const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});t.after(()=>child.kill());
- await new Promise(r=>setTimeout(r,process.platform==='win32'?5000:2200));
- const state=await(await fetch(base+'/api/processes')).json();assert.ok(state.processes.length);
+ let state;
+ for(let attempt=0;attempt<40;attempt++){
+  await new Promise(r=>setTimeout(r,500));
+  const response=await fetch(base+'/api/processes');state=await response.json();
+  assert.equal(response.status,200,state.error);
+  if(state.processes.some(p=>p.pid===child.pid))break;
+ }
+ assert.ok(state.processes.some(p=>p.pid===child.pid),'spawned test process must appear in live telemetry');
  const headers={'Content-Type':'application/json',Origin:base,'X-Control-Token':state.token};
  const post=(body,h=headers)=>fetch(base+'/api/kill',{method:'POST',headers:h,body:JSON.stringify(body)});
  assert.equal((await post({},{})).status,403);

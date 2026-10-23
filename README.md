@@ -6,7 +6,7 @@
 
 在 [Releases](https://github.com/keifour/Process-Metropolis/releases) 下载 `Process-Metropolis-0.2.0-windows-x64.exe`，双击运行，无需 Node.js 或 WSL。支持 Windows 10/11 x64。免安装程序首次启动会解压内置运行时；退出窗口即停止监控服务。
 
-原生采样使用系统自带的 Windows PowerShell、.NET 与 Win32 API。无需管理员权限；仅允许结束当前用户、当前会话中的非关键进程，结束前会再次校验身份及权限。程序未进行商业代码签名，Windows 可能提示未知发布者。下载校验值见 Release 中的 `SHA256SUMS.txt`。
+原生采样通过随程序附带的 .NET/Win32 辅助程序完成，不依赖 PowerShell 或 WMI。源码开发会自动使用 Windows 自带的 .NET Framework 4 编译器构建该辅助程序。无需管理员权限；仅允许结束当前用户、当前会话中的非关键进程，结束前会再次校验身份及权限。程序未进行商业代码签名，Windows 可能提示未知发布者。下载校验值见 Release 中的 `SHA256SUMS.txt`。
 
 ## 本机源码运行
 

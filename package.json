@@ -9,7 +9,11 @@
     "test": "node --test",
     "desktop": "electron .",
     "dist:win": "electron-builder --win portable --x64 --publish never",
-    "smoke:desktop": "node scripts/smoke-desktop.mjs"
+    "smoke:desktop": "node scripts/smoke-desktop.mjs",
+    "prepare:windows": "node scripts/prepare-windows.cjs",
+    "pretest": "node scripts/prepare-windows.cjs",
+    "predesktop": "node scripts/prepare-windows.cjs",
+    "presmoke:desktop": "node scripts/prepare-windows.cjs"
   },
   "dependencies": {
     "three": "0.180.0"
@@ -36,8 +40,7 @@
       "server.mjs",
       "monitor.mjs",
       "windows-monitor.mjs",
-      "package.json",
-      "windows-native.mjs"
+      "package.json"
     ],
     "win": {
       "target": [
@@ -49,7 +52,13 @@
         }
       ],
       "icon": "build/icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "extraResources": [
+        {
+          "from": "build/windows-helper.exe",
+          "to": "windows-helper.exe"
+        }
+      ]
     },
     "portable": {
       "requestExecutionLevel": "user"
