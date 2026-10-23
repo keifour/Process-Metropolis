@@ -4,7 +4,7 @@
 
 ## Windows 桌面版
 
-在 [Releases](https://github.com/keifour/Process-Metropolis/releases) 下载 `Process-Metropolis-0.2.0-windows-x64.exe`，双击运行，无需 Node.js 或 WSL。支持 Windows 10/11 x64。免安装程序首次启动会解压内置运行时；退出窗口即停止监控服务。
+在 [Releases](https://github.com/keifour/Process-Metropolis/releases) 下载 `Process-Metropolis-0.2.1-windows-x64.exe`，双击运行，无需 Node.js 或 WSL。支持 Windows 10/11 x64。免安装程序首次启动会解压内置运行时；退出窗口即停止监控服务。
 
 原生采样通过随程序附带的 .NET/Win32 辅助程序完成，不依赖 PowerShell 或 WMI。源码开发会自动使用 Windows 自带的 .NET Framework 4 编译器构建该辅助程序。无需管理员权限；仅允许结束当前用户、当前会话中的非关键进程，结束前会再次校验身份及权限。程序未进行商业代码签名，Windows 可能提示未知发布者。下载校验值见 Release 中的 `SHA256SUMS.txt`。
 
@@ -50,3 +50,5 @@ npm run dist:win
 Three.js 从本地依赖加载；字体有系统字体回退。没有外部 API、数据库或密钥要求。
 
 桌面应用包含 Electron 运行时，界面关闭后自动结束本机回环服务。运行时只允许访问应用自身的本机地址，不加载外部网页，不开放 Node.js 给界面。
+
+监控辅助程序常驻运行，避免逐次启动的开销；软件 WebGL 回退时使用较低分辨率与帧率，给系统采样保留运行时间。

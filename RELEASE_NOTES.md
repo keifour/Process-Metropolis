@@ -1,6 +1,6 @@
 ## Windows x64 免安装桌面版
 
-下载 `Process-Metropolis-0.2.0-windows-x64.exe`，双击运行。首次启动需要解压内置运行时，请稍等片刻。无需安装 Node.js、浏览器或 WSL。
+下载 `Process-Metropolis-0.2.1-windows-x64.exe`，双击运行。首次启动需要解压内置运行时，请稍等片刻。无需安装 Node.js、浏览器或 WSL。
 
 - 原生 Windows 进程、CPU 和内存采样。
 - Three.js 3D 城市、进程搜索与排序、建筑检查。

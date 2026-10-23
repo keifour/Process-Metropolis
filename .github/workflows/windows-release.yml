@@ -90,9 +90,8 @@ jobs:
         if: always()
         with:
           name: windows-build-${{ github.ref_name }}
-          path: |
-            dist/*-windows-x64.exe
-            artifacts/
+          path: artifacts/
+          retention-days: 7
           if-no-files-found: warn
       - name: Save build receipt
         if: always()
