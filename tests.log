@@ -1,0 +1,11 @@
+
+> process-metropolis@0.2.0 test
+> node --test
+
+TAP version 13
+# Subtest: parses process metrics and command names with spaces
+ok 1 - parses process metrics and command names with spaces
+  ---
+  duration_ms: 10.7023
+  type: 'test'
+  ...
