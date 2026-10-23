@@ -15,7 +15,7 @@ function toast(text){$('toast').textContent=text;$('toast').style.display='block
 function initCity(){
  renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setClearColor(0x080e14,0);
  const gl=renderer.getContext(),debug=gl.getExtension('WEBGL_debug_renderer_info');
- if(debug && /swiftshader|llvmpipe|software|microsoft basic render/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL))){frameInterval=200;renderer.setPixelRatio(1);}
+ if(debug && /swiftshader|llvmpipe|software|microsoft basic render/i.test(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL))){frameInterval=200;renderer.setPixelRatio(.75);}
  renderer.toneMapping=THREE.ACESFilmicToneMapping;
  scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x10242e,.014);
  camera=new THREE.PerspectiveCamera(42,1,.1,300);camera.position.set(39,34,45);
@@ -29,12 +29,12 @@ function initCity(){
  const resize=()=>{const {width,height}=canvas.parentElement.getBoundingClientRect();renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();};new ResizeObserver(resize).observe(canvas.parentElement);resize();
  let down;canvas.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);canvas.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;const r=canvas.getBoundingClientRect();pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);const hits=raycaster.intersectObjects([...buildings.values()].map(b=>b.mesh));if(hits[0])select(hits[0].object.userData.pid);});
  citizenMesh=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(citizens.length*3),3)),new THREE.PointsMaterial({color:0xb7fff1,size:.14,transparent:true,opacity:.8}));scene.add(citizenMesh);
- const clock=new THREE.Clock();let lastFrame=0;function animate(){requestAnimationFrame(animate);const frame=performance.now();if(frame-lastFrame<frameInterval)return;lastFrame=frame;const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;controls.update();
+ const clock=new THREE.Clock();function animate(){const dt=Math.min(clock.getDelta(),.05),t=clock.elapsedTime;controls.update();
  for(const b of buildings.values()){b.mesh.scale.y=THREE.MathUtils.lerp(b.mesh.scale.y,b.height,.06);b.edges.scale.y=b.mesh.scale.y;b.mesh.position.y=b.mesh.scale.y/2;b.edges.position.y=b.mesh.position.y;b.mesh.material.emissiveIntensity=b.pid===selected?.pid?1.3:.2+Math.min(b.cpu/50,.8);}
  for(let i=debris.length-1;i>=0;i--){const d=debris[i];d.life-=dt;d.mesh.position.addScaledVector(d.velocity,dt);d.velocity.y-=16*dt;d.mesh.rotation.x+=dt;d.mesh.material.opacity=Math.max(0,d.life/2);if(d.life<=0){scene.remove(d.mesh);d.mesh.geometry.dispose();d.mesh.material.dispose();debris.splice(i,1);}}
  const positions=citizenMesh.geometry.attributes.position;for(let i=0;i<citizens.length;i++){const c=citizens[i],fast=performance.now()<panicUntil?5:1;c[c.axis?'z':'x']+=c.speed*dt*fast;if(c.x>24)c.x=-24;if(c.x< -24)c.x=24;if(c.z>24)c.z=-24;if(c.z< -24)c.z=24;positions.setXYZ(i,c.axis?Math.round(c.x/6)*6:c.x,.15,c.axis?c.z:Math.round(c.z/6)*6);}positions.needsUpdate=true;citizenMesh.material.color.setHex(performance.now()<panicUntil?0xffaa77:0xb7fff1);
  const load=data?data.processes.reduce((a,p)=>a+p.cpu,0)/data.cores:0;ground.position.y=load>70?-.35+Math.sin(t*35)*Math.min((load-70)/300,.13):-.35;
- scene.fog.density=data&&data.usedMemory/data.totalMemory>.85?.026:.014;renderer.render(scene,camera);}
+ scene.fog.density=data&&data.usedMemory/data.totalMemory>.85?.026:.014;renderer.render(scene,camera);setTimeout(()=>requestAnimationFrame(animate),frameInterval);}
  animate();
 }
 function removeBuilding(pid,explode=false){const b=buildings.get(pid);if(!b)return;scene.remove(b.mesh,b.edges);if(explode){panicUntil=performance.now()+2200;for(let i=0;i<32;i++){const m=new THREE.Mesh(new THREE.BoxGeometry(.3+Math.random()*.6,.5,.4),new THREE.MeshStandardMaterial({color:b.color,emissive:b.color,emissiveIntensity:.7,transparent:true}));m.position.copy(b.mesh.position);m.position.y=Math.random()*b.height;m.position.x+=(Math.random()-.5)*2;m.position.z+=(Math.random()-.5)*2;scene.add(m);debris.push({mesh:m,velocity:new THREE.Vector3((Math.random()-.5)*12,Math.random()*8,(Math.random()-.5)*12),life:2});}}
