@@ -1,7 +1,7 @@
 {
-  "status": "building",
+  "status": "cancelled",
   "commit": "5e7cf387d2064802bb8f4803f800372b9b0b0098",
   "ref": "main",
   "run": "https://github.com/keifour/Process-Metropolis/actions/runs/39913150363",
-  "timestamp": "2026-10-23T06:45:51.104Z"
+  "timestamp": "2026-10-23T06:47:54.662Z"
 }
